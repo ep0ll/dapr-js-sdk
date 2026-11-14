@@ -40,11 +40,7 @@ import {
 import { DeferredAsyncIterable } from "../../../utils/Streams.util";
 import { deserializeGrpc } from "../../../utils/Deserializer.util";
 import DaprPubSubStatusEnum from "../../../enum/DaprPubSubStatus.enum";
-import {
-  TopicEventResponse_TopicEventResponseStatus,
-  BulkSubscribeConfig,
-  TopicEventBulkRequestEntry,
-} from "../../../proto/dapr/proto/runtime/v1/appcallback_pb";
+import { TopicEventResponse_TopicEventResponseStatus } from "../../../proto/dapr/proto/runtime/v1/appcallback_pb";
 
 /**
  * Determines whether a gRPC error means the sidecar does not serve the stable
@@ -261,10 +257,10 @@ export default class GRPCClientPubSub implements IClientPubSub {
                   topic,
                   pubsubName: pubSubName,
                   path: "",
-                  extensions: ce.extensions?.fields ?? {},
+                  extensions: ce.extensions ?? {},
                 };
                 headers = {
-                  ...ce.extensions?.fields,
+                  ...ce.extensions,
                   id: ce.id,
                   source: ce.source,
                   type: ce.type,
