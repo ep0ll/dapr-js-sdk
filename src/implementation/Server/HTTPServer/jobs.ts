@@ -13,7 +13,7 @@ limitations under the License.
 
 import HTTPServer from "./HTTPServer";
 import IServerJobs from "../../../interfaces/Server/IServerJobs";
-import { validateJobName } from "../../../jobs/Jobs.util";
+import { validateJobRoutePath } from "../../../jobs/Jobs.util";
 import { Logger } from "../../../logger/Logger";
 
 export default class HTTPServerJobs implements IServerJobs {
@@ -23,10 +23,11 @@ export default class HTTPServerJobs implements IServerJobs {
 
   private registerRoute(): void {
     const logger = new Logger("HTTPServer", "Jobs", this.server.client.options.logger);
-    this.server.getServer().post("/job/:name", async (req, res) => {
-      const callback = this.handlers.get(req.params.name);
+    this.server.getServer().post("/job/*", async (req, res) => {
+      const routePath = req.params[0];
+      const callback = this.handlers.get(routePath);
       if (!callback) {
-        logger.warn(`Job '${req.params.name}' was not handled`);
+        logger.warn(`Job route '${routePath}' was not handled`);
         res.sendStatus(404);
         return;
       }
@@ -34,19 +35,19 @@ export default class HTTPServerJobs implements IServerJobs {
         await callback(req.headers["content-length"] === "0" ? undefined : req.body);
         res.sendStatus(200);
       } catch (error) {
-        logger.error(`Job '${req.params.name}' callback failed: ${error}`);
+        logger.error(`Job route '${routePath}' callback failed: ${error}`);
         res.status(500).json({ error: "COULD_NOT_PROCESS_CALLBACK" });
       }
     });
   }
 
   async listen(name: string, callback: Parameters<IServerJobs["listen"]>[1]): Promise<void> {
-    validateJobName(name);
+    validateJobRoutePath(name);
     if (typeof callback !== "function") {
       throw new TypeError("A job callback is required");
     }
     if (this.handlers.has(name)) {
-      throw new Error(`A handler for job '${name}' is already registered`);
+      throw new Error(`A handler for job route '${name}' is already registered`);
     }
     if (this.handlers.size === 0) {
       this.registerRoute();
