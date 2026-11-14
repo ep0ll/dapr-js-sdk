@@ -16,7 +16,7 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
-import type { TopicEventRequest, TopicEventResponse } from "./appcallback_pb.js";
+import type { BulkSubscribeConfig, TopicEventBulkRequestEntry, TopicEventRequest, TopicEventResponse } from "./appcallback_pb.js";
 
 /**
  * Describes the file dapr/proto/runtime/v1/pubsub.proto.
@@ -274,6 +274,13 @@ export declare type SubscribeTopicEventsRequestInitialAlpha1 = Message<"dapr.pro
    * @generated from field: optional string dead_letter_topic = 4;
    */
   deadLetterTopic?: string | undefined;
+
+  /**
+   * Optional bulk subscription configuration.
+   *
+   * @generated from field: dapr.proto.runtime.v1.BulkSubscribeConfig bulk_subscribe = 5;
+   */
+  bulkSubscribe?: BulkSubscribeConfig | undefined;
 };
 
 /**
@@ -333,6 +340,13 @@ export declare type SubscribeTopicEventsResponseAlpha1 = Message<"dapr.proto.run
     value: TopicEventRequest;
     case: "eventMessage";
   } | { case: undefined; value?: undefined };
+
+  /**
+   * Batch of events delivered over the streaming subscription.
+   *
+   * @generated from field: repeated dapr.proto.runtime.v1.SubscribeTopicEventsBulkEntryAlpha1 event_messages = 3;
+   */
+  eventMessages: SubscribeTopicEventsBulkEntryAlpha1[];
 };
 
 /**
@@ -355,4 +369,33 @@ export declare type SubscribeTopicEventsResponseInitialAlpha1 = Message<"dapr.pr
  * Use `create(SubscribeTopicEventsResponseInitialAlpha1Schema)` to create a new message.
  */
 export declare const SubscribeTopicEventsResponseInitialAlpha1Schema: GenMessage<SubscribeTopicEventsResponseInitialAlpha1>;
+
+/**
+ * SubscribeTopicEventsBulkEntryAlpha1 wraps an original bulk entry with
+ * a transport delivery ID used for acknowledgement correlation.
+ *
+ * @generated from message dapr.proto.runtime.v1.SubscribeTopicEventsBulkEntryAlpha1
+ */
+export declare type SubscribeTopicEventsBulkEntryAlpha1 = Message<"dapr.proto.runtime.v1.SubscribeTopicEventsBulkEntryAlpha1"> & {
+  /**
+   * Unique ID for the individual stream delivery.
+   *
+   * @generated from field: string delivery_id = 1;
+   */
+  deliveryId: string;
+
+  /**
+   * Original component bulk entry, including its CloudEvent/raw payload identity.
+   *
+   * @generated from field: dapr.proto.runtime.v1.TopicEventBulkRequestEntry entry = 2;
+   */
+  entry?: TopicEventBulkRequestEntry | undefined;
+};
+
+/**
+ * Describes the message dapr.proto.runtime.v1.SubscribeTopicEventsBulkEntryAlpha1.
+ * Use `create(SubscribeTopicEventsBulkEntryAlpha1Schema)` to create a new message.
+ */
+export declare const SubscribeTopicEventsBulkEntryAlpha1Schema: GenMessage<SubscribeTopicEventsBulkEntryAlpha1>;
+
 

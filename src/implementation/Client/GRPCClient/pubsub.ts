@@ -40,7 +40,11 @@ import {
 import { DeferredAsyncIterable } from "../../../utils/Streams.util";
 import { deserializeGrpc } from "../../../utils/Deserializer.util";
 import DaprPubSubStatusEnum from "../../../enum/DaprPubSubStatus.enum";
-import { TopicEventResponse_TopicEventResponseStatus } from "../../../proto/dapr/proto/runtime/v1/appcallback_pb";
+import {
+  TopicEventResponse_TopicEventResponseStatus,
+  BulkSubscribeConfig,
+  TopicEventBulkRequestEntry,
+} from "../../../proto/dapr/proto/runtime/v1/appcallback_pb";
 
 /**
  * Determines whether a gRPC error means the sidecar does not serve the stable
@@ -136,6 +140,7 @@ export default class GRPCClientPubSub implements IClientPubSub {
             topic,
             metadata: options.metadata,
             deadLetterTopic: options.deadLetterTopic,
+            bulkSubscribe: options.bulkSubscribe,
           },
         },
       }),
@@ -148,6 +153,55 @@ export default class GRPCClientPubSub implements IClientPubSub {
       resolveReady = resolve;
       rejectReady = reject;
     });
+
+    const processEvent = async (
+      event: { data: Uint8Array; dataContentType: string; id?: string; source?: string; type?: string;
+        specVersion?: string; topic?: string; pubsubName?: string; path?: string },
+      acknowledgementId: string,
+      extra: { entryId?: string; metadata?: Record<string, string>; headers?: Record<string, unknown> },
+    ): Promise<void> => {
+      let status = TopicEventResponse_TopicEventResponseStatus.RETRY;
+      try {
+        const data = deserializeGrpc(event.dataContentType, event.data, this.client.options.serializer);
+        const headers = extra.headers ?? {
+          ...(extra.metadata ?? {}),
+          id: event.id,
+          source: event.source,
+          type: event.type,
+          specversion: event.specVersion,
+          datacontenttype: event.dataContentType,
+          topic: event.topic,
+          pubsubname: event.pubsubName,
+          path: event.path,
+          entryId: extra.entryId,
+        };
+        const result: unknown = await callback(data, headers);
+        switch (result) {
+          case undefined:
+          case DaprPubSubStatusEnum.SUCCESS:
+            status = TopicEventResponse_TopicEventResponseStatus.SUCCESS;
+            break;
+          case DaprPubSubStatusEnum.RETRY:
+            break;
+          case DaprPubSubStatusEnum.DROP:
+            status = TopicEventResponse_TopicEventResponseStatus.DROP;
+            break;
+          default:
+            throw new TypeError("Streaming subscription callback must return SUCCESS, RETRY, DROP, or void.");
+        }
+      } catch (error) {
+        this.logger.error(`Streaming subscription '${pubSubName}/${topic}' processing failed: ${error}`);
+      }
+      if (controller.signal.aborted) return;
+      requests.push(
+        create(SubscribeTopicEventsRequestAlpha1Schema, {
+          subscribeTopicEventsRequestType: {
+            case: "eventProcessed",
+            value: { id: acknowledgementId, status: { status } },
+          },
+        }),
+      );
+    };
 
     const closed = (async () => {
       try {
@@ -163,50 +217,102 @@ export default class GRPCClientPubSub implements IClientPubSub {
             resolveReady();
             continue;
           }
-          if (message.case !== "eventMessage") {
-            throw new Error("Expected an event message for the streaming subscription.");
+          if (message.case === "eventMessage") {
+            await processEvent(message.value, message.value.id, {
+              entryId: undefined,
+              metadata: {},
+            });
+            continue;
           }
 
-          const event = message.value;
-          let status = TopicEventResponse_TopicEventResponseStatus.RETRY;
-          try {
-            const data = deserializeGrpc(event.dataContentType, event.data, this.client.options.serializer);
-            const result: unknown = await callback(data, {
-              ...event.extensions,
-              id: event.id,
-              source: event.source,
-              type: event.type,
-              specversion: event.specVersion,
-              datacontenttype: event.dataContentType,
-              topic: event.topic,
-              pubsubname: event.pubsubName,
-              path: event.path,
-            });
-            switch (result) {
-              case undefined:
-              case DaprPubSubStatusEnum.SUCCESS:
-                status = TopicEventResponse_TopicEventResponseStatus.SUCCESS;
-                break;
-              case DaprPubSubStatusEnum.RETRY:
-                break;
-              case DaprPubSubStatusEnum.DROP:
-                status = TopicEventResponse_TopicEventResponseStatus.DROP;
-                break;
-              default:
-                throw new TypeError("Streaming subscription callback must return SUCCESS, RETRY, DROP, or void.");
+          if (response.eventMessages.length > 0) {
+            for (const item of response.eventMessages) {
+              if (!item.deliveryId || !item.entry) {
+                throw new Error("Streaming bulk response contains an entry without a delivery ID or payload.");
+              }
+              const entry = item.entry;
+              let event: {
+                id: string;
+                source: string;
+                type: string;
+                specVersion: string;
+                dataContentType: string;
+                data: Uint8Array;
+                topic: string;
+                pubsubName: string;
+                path: string;
+                extensions: Record<string, unknown>;
+              };
+              let dataContentType: string;
+              let rawData: Uint8Array;
+              let headers: Record<string, unknown>;
+
+              if (entry.event.case === "cloudEvent") {
+                const ce = entry.event.value;
+                dataContentType = ce.dataContentType;
+                rawData = ce.data;
+                event = {
+                  id: ce.id,
+                  source: ce.source,
+                  type: ce.type,
+                  specVersion: ce.specVersion,
+                  dataContentType: ce.dataContentType,
+                  data: ce.data,
+                  topic,
+                  pubsubName: pubSubName,
+                  path: "",
+                  extensions: ce.extensions?.fields ?? {},
+                };
+                headers = {
+                  ...ce.extensions?.fields,
+                  id: ce.id,
+                  source: ce.source,
+                  type: ce.type,
+                  specversion: ce.specVersion,
+                  datacontenttype: ce.dataContentType,
+                  topic,
+                  pubsubname: pubSubName,
+                  entryId: entry.entryId,
+                  metadata: entry.metadata,
+                };
+              } else if (entry.event.case === "bytes") {
+                dataContentType = entry.contentType;
+                rawData = entry.event.value;
+                event = {
+                  id: entry.entryId,
+                  source: "",
+                  type: "",
+                  specVersion: "",
+                  dataContentType: entry.contentType,
+                  data: rawData,
+                  topic,
+                  pubsubName: pubSubName,
+                  path: "",
+                  extensions: {},
+                };
+                headers = {
+                  id: entry.entryId,
+                  topic,
+                  pubsubname: pubSubName,
+                  datacontenttype: entry.contentType,
+                  entryId: entry.entryId,
+                  metadata: entry.metadata,
+                };
+              } else {
+                throw new Error("Streaming bulk entry has no payload.");
+              }
+
+              await processEvent(
+                { data: rawData, dataContentType } as typeof event,
+                item.deliveryId,
+                { entryId: entry.entryId, metadata: entry.metadata, headers },
+              );
+              if (controller.signal.aborted) break;
             }
-          } catch (error) {
-            this.logger.error(`Streaming subscription '${pubSubName}/${topic}' processing failed: ${error}`);
+            continue;
           }
-          if (controller.signal.aborted) break;
-          requests.push(
-            create(SubscribeTopicEventsRequestAlpha1Schema, {
-              subscribeTopicEventsRequestType: {
-                case: "eventProcessed",
-                value: { id: event.id, status: { status } },
-              },
-            }),
-          );
+
+          throw new Error("Expected a single event or bulk event message for the streaming subscription.");
         }
         if (!controller.signal.aborted) {
           throw new Error("Streaming subscription ended unexpectedly.");

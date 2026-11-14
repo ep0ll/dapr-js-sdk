@@ -12,9 +12,12 @@ limitations under the License.
 */
 
 import { PubSubSubscriptionOptionsType } from "./PubSubSubscriptionOptions.type";
+import { BulkSubscribeConfig } from "./BulkSubscribeConfig.type";
 
 /** Options for the gRPC-only SubscribeTopicEventsAlpha1 API. */
 export type PubSubStreamingSubscriptionOptions = Pick<PubSubSubscriptionOptionsType, "metadata" | "deadLetterTopic"> & {
+  /** Enables bulk delivery and supplies its batch limits. */
+  bulkSubscribe?: BulkSubscribeConfig;
   /** Cancels the stream, including while waiting for the initial response. */
   signal?: AbortSignal;
 };
