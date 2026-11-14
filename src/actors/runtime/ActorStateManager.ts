@@ -81,11 +81,16 @@ export default class ActorStateManager<T> {
     if (stateChangeTracker.has(stateName)) {
       const stateMetadata = stateChangeTracker.get(stateName);
 
-      if (stateMetadata?.getChangeKind() === StateChangeKind.REMOVE || stateMetadata?.isExpired()) {
+      if (stateMetadata?.getChangeKind() === StateChangeKind.REMOVE) {
         stateChangeTracker.set(
           stateName,
           StateMetadata.replacing(stateMetadata, value, StateChangeKind.UPDATE, ttlExpireTime),
         );
+        return true;
+      }
+
+      if (stateMetadata?.isExpired()) {
+        stateChangeTracker.set(stateName, new StateMetadata(value, StateChangeKind.ADD, ttlExpireTime));
         return true;
       }
 
@@ -186,7 +191,7 @@ export default class ActorStateManager<T> {
 
     stateChangeTracker.set(
       stateName,
-      new StateMetadata(value, didExist ? StateChangeKind.UPDATE : StateChangeKind.ADD, ttlExpireTime, etag),
+      new StateMetadata(value, didExist ? StateChangeKind.UPDATE : StateChangeKind.ADD, ttlExpireTime, didExist ? etag : undefined),
     );
   }
 
@@ -264,10 +269,12 @@ export default class ActorStateManager<T> {
     }
 
     // A tracked (removed or expired) entry may still exist in the store, so upsert as an update.
-    const changeKind = stateChangeTracker.has(stateName) ? StateChangeKind.UPDATE : StateChangeKind.ADD;
+    const previous = stateChangeTracker.get(stateName);
+    const wasRemoved = previous?.getChangeKind() === StateChangeKind.REMOVE;
+    const changeKind = previous ? StateChangeKind.UPDATE : StateChangeKind.ADD;
     stateChangeTracker.set(
       stateName,
-      StateMetadata.replacing(stateChangeTracker.get(stateName), value, changeKind, ttlExpireTime),
+      new StateMetadata(value, changeKind, ttlExpireTime, wasRemoved ? previous.getETag() : undefined),
     );
 
     return value;
@@ -310,11 +317,16 @@ export default class ActorStateManager<T> {
         throw new Error("State Metadata was not set");
       }
 
-      if (stateMetadata.getChangeKind() === StateChangeKind.REMOVE || stateMetadata.isExpired()) {
+      if (stateMetadata.getChangeKind() === StateChangeKind.REMOVE) {
         stateChangeTracker.set(
           stateName,
           StateMetadata.replacing(stateMetadata, value, StateChangeKind.UPDATE, ttlExpireTime),
         );
+        return value;
+      }
+
+      if (stateMetadata.isExpired()) {
+        stateChangeTracker.set(stateName, new StateMetadata(value, StateChangeKind.ADD, ttlExpireTime));
         return value;
       }
 
