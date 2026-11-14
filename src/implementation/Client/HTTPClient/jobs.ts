@@ -38,6 +38,7 @@ export default class HTTPClientJobs implements IClientJobs {
       data: job.data === undefined ? null : decodeJobData(job.data),
       overwrite: options.overwrite,
       failurePolicy: job.failurePolicy ? toJson(JobFailurePolicySchema, job.failurePolicy) : undefined,
+      overrideRoutePath: job.overrideRoutePath,
     };
     const version = await this.metadata.getJobsApiVersion();
     await this.client.executeWithApiVersion(version, `/jobs/${encodeURIComponent(name)}`, {

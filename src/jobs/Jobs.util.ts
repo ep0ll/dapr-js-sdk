@@ -36,6 +36,19 @@ export function validateJobName(name: string): void {
   }
 }
 
+export function validateJobRoutePath(routePath: string): void {
+  if (
+    typeof routePath !== "string" ||
+    routePath.startsWith("/") ||
+    routePath.endsWith("/") ||
+    routePath.split("/").some((segment) => !segment || segment === "." || segment === "..") ||
+    /[\\\\?#%]/.test(routePath) ||
+    Array.from(routePath).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+  ) {
+    throw new TypeError("overrideRoutePath must be a relative HTTP path without empty or traversal segments");
+  }
+}
+
 function validateUint32(value: number, field: string): void {
   if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) {
     throw new RangeError(`${field} must be an integer between 0 and 4294967295`);
@@ -62,12 +75,16 @@ export function encodeJob(name: string, options: JobOptions): ProtoJob {
   if (options.overwrite !== undefined && typeof options.overwrite !== "boolean") {
     throw new TypeError("overwrite must be a boolean");
   }
+  if (options.overrideRoutePath !== undefined) {
+    validateJobRoutePath(options.overrideRoutePath);
+  }
   const job = create(JobSchema, {
     name,
     schedule,
     dueTime: options.dueTime,
     ttl: options.ttl,
     repeats: options.repeats,
+    overrideRoutePath: options.overrideRoutePath,
   });
   if (options.data !== undefined) {
     if (options.data instanceof Uint8Array) {
@@ -146,5 +163,6 @@ export function decodeJob(job?: ProtoJob): Job {
     repeats: job.repeats,
     data: decodeJobData(job.data),
     failurePolicy,
+    overrideRoutePath: job.overrideRoutePath,
   };
 }

@@ -30,6 +30,8 @@ export type Job = {
   data?: JsonValue | Uint8Array;
   /** Constant interval uses protobuf duration syntax; omit it or use "0s" for immediate retries. */
   failurePolicy?: JobFailurePolicy;
+  /** Optional relative HTTP callback path under /job/, independent of the job name. */
+  overrideRoutePath?: string;
 };
 
 export type JobOptions = Omit<Job, "name" | "schedule"> & {

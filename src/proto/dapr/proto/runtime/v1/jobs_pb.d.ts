@@ -105,6 +105,13 @@ export declare type Job = Message<"dapr.proto.runtime.v1.Job"> & {
    * @generated from field: optional dapr.proto.common.v1.JobFailurePolicy failure_policy = 7;
    */
   failurePolicy?: JobFailurePolicy | undefined;
+
+  /**
+   * Optional relative HTTP callback path under /job/. The job name remains unchanged.
+   *
+   * @generated from field: optional string override_route_path = 8;
+   */
+  overrideRoutePath?: string | undefined;
 };
 
 /**
