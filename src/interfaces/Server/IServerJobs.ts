@@ -14,6 +14,12 @@ limitations under the License.
 import { Job } from "../../types/jobs/Job";
 
 export default interface IServerJobs {
-  /** Register before starting the server. Throw/reject to apply the job's failure policy. */
+  /**
+   * Register a job callback before starting the server.
+   *
+   * The key is the job name by default, or the configured overrideRoutePath
+   * when the job is delivered to a custom callback route.
+   * Throw/reject to apply the job's failure policy.
+   */
   listen(name: string, callback: (data: Job["data"]) => Promise<void>): Promise<void>;
 }
