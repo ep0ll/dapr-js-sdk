@@ -128,12 +128,12 @@ export default class ActorStateManager<T> {
       return [true, val !== undefined ? val : null];
     }
 
-    const [hasValue, value] = await this.actor
+    const [hasValue, value, etag] = await this.actor
       .getStateProvider()
-      .tryLoadState(this.actor.getActorType(), this.actor.getActorId(), stateName);
+      .tryLoadStateWithETag(this.actor.getActorType(), this.actor.getActorId(), stateName);
 
     if (hasValue) {
-      stateChangeTracker.set(stateName, new StateMetadata(value, StateChangeKind.NONE));
+      stateChangeTracker.set(stateName, new StateMetadata(value, StateChangeKind.NONE, undefined, etag));
     }
 
     return [hasValue, value];
@@ -180,15 +180,14 @@ export default class ActorStateManager<T> {
       return;
     }
 
-    const didExist = await this.actor
+    const [didExist, , etag] = await this.actor
       .getStateProvider()
-      .containsState(this.actor.getActorType(), this.actor.getActorId(), stateName);
+      .tryLoadStateWithETag(this.actor.getActorType(), this.actor.getActorId(), stateName);
 
-    if (didExist) {
-      stateChangeTracker.set(stateName, new StateMetadata(value, StateChangeKind.UPDATE, ttlExpireTime));
-    } else {
-      stateChangeTracker.set(stateName, new StateMetadata(value, StateChangeKind.ADD, ttlExpireTime));
-    }
+    stateChangeTracker.set(
+      stateName,
+      new StateMetadata(value, didExist ? StateChangeKind.UPDATE : StateChangeKind.ADD, ttlExpireTime, etag),
+    );
   }
 
   async removeState(stateName: string): Promise<void> {
@@ -222,12 +221,12 @@ export default class ActorStateManager<T> {
       return true;
     }
 
-    const didExist = await this.actor
+    const [didExist, , etag] = await this.actor
       .getStateProvider()
-      .containsState(this.actor.getActorType(), this.actor.getActorId(), stateName);
+      .tryLoadStateWithETag(this.actor.getActorType(), this.actor.getActorId(), stateName);
 
     if (didExist) {
-      stateChangeTracker.set(stateName, new StateMetadata(null as any, StateChangeKind.REMOVE));
+      stateChangeTracker.set(stateName, new StateMetadata(null as any, StateChangeKind.REMOVE, undefined, etag));
       return true;
     }
 
@@ -332,13 +331,16 @@ export default class ActorStateManager<T> {
       return newValue;
     }
 
-    const [hasValue, val] = await this.actor
+    const [hasValue, val, etag] = await this.actor
       .getStateProvider()
-      .tryLoadState(this.actor.getActorType(), this.actor.getActorId(), stateName);
+      .tryLoadStateWithETag(this.actor.getActorType(), this.actor.getActorId(), stateName);
 
     if (hasValue) {
       const newValue = updateValueFactory(stateName, val);
-      stateChangeTracker.set(stateName, new StateMetadata(newValue, StateChangeKind.UPDATE, ttlExpireTime));
+      stateChangeTracker.set(
+        stateName,
+        new StateMetadata(newValue, StateChangeKind.UPDATE, ttlExpireTime, etag),
+      );
       return newValue;
     }
 
@@ -388,6 +390,7 @@ export default class ActorStateManager<T> {
           stateMetadata.getChangeKind(),
           stateMetadata.getTtlExpireTime(),
           stateMetadata.isTtlRemoved(),
+          stateMetadata.getETag(),
         ),
       );
 
@@ -403,6 +406,11 @@ export default class ActorStateManager<T> {
 
     if (stateChanges.length > 0) {
       await this.actor.getStateProvider().saveState(this.actor.getActorType(), this.actor.getActorId(), stateChanges);
+      // The transaction changed the row version. New reads must obtain the new
+      // ETag rather than reuse the one associated with the pre-save value.
+      for (const stateChange of stateChanges) {
+        stateChangeTracker.delete(stateChange.getStateName());
+      }
     }
 
     for (const stateName of statesToRemove) {
