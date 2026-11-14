@@ -15,6 +15,11 @@ import ActorId from "../../actors/ActorId";
 import { ActorReminderType, NamedActorReminderType } from "../../types/ActorReminder.type";
 import { ActorTimerType } from "../../types/ActorTimer.type";
 import { KeyValueType } from "../../types/KeyValue.type";
+
+export interface ActorStateValue {
+  value: KeyValueType | string;
+  etag?: string;
+}
 import { OperationType } from "../../types/Operation.type";
 
 /**
@@ -70,7 +75,7 @@ export default interface IClientActor {
    *
    * @see https://docs.dapr.io/reference/api/actors_api/#get-actor-state
    */
-  stateGet(actorType: string, actorId: ActorId, key: string): Promise<KeyValueType | string>;
+  stateGet(actorType: string, actorId: ActorId, key: string): Promise<ActorStateValue>;
 
   /**
    * Registers a reminder for an actor.
