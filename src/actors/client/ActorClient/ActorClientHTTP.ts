@@ -20,6 +20,7 @@ import { KeyValueType } from "../../../types/KeyValue.type";
 import ActorId from "../../ActorId";
 import { parseActorReminder } from "../../../utils/Actors.util";
 import { HTTPNotSupportedError } from "../../../errors/HTTPNotSupportedError";
+import { ActorStateETagMismatchError } from "../../../errors/ActorStateETagMismatchError";
 
 // https://docs.dapr.io/reference/api/actors_api/
 export default class ActorClientHTTP implements IClientActor {
@@ -39,13 +40,29 @@ export default class ActorClientHTTP implements IClientActor {
   }
 
   async stateTransaction(actorType: string, actorId: ActorId, operations: OperationType[]): Promise<void> {
-    await this.client.execute(`/actors/${actorType}/${actorId.getURLSafeId()}/state`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: operations,
-    });
+    try {
+      await this.client.execute(`/actors/${actorType}/${actorId.getURLSafeId()}/state`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: operations,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        try {
+          const response = JSON.parse(error.message);
+          if (response.status === 409) {
+            throw new ActorStateETagMismatchError("Actor state ETag does not match the stored value.");
+          }
+        } catch (parseError) {
+          if (parseError instanceof ActorStateETagMismatchError) {
+            throw parseError;
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   async stateGet(actorType: string, actorId: ActorId, key: string): Promise<ActorStateValue> {
