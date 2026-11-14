@@ -83,6 +83,8 @@ message GetActorStateResponse {
 
   // The metadata which will be sent to app.
   map<string, string> metadata = 2;
+  // The state store ETag used to reject stale actor state writes.
+  string etag = 3;
 }
 
 // ExecuteActorStateTransactionRequest is the message to execute multiple operations on a specified actor.
@@ -102,6 +104,8 @@ message TransactionalActorStateOperation {
   // Common metadata property:
   // - ttlInSeconds : the time to live in seconds for the stored value.
   map<string, string> metadata = 4;
+  // The ETag read with the current state value. A mismatch aborts the transaction.
+  string etag = 5;
 }
 
 // InvokeActorRequest is the message to call an actor.
