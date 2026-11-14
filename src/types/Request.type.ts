@@ -83,7 +83,7 @@ export type IRequest = {
    *
    * @see {@link https://dapr.io/docs/developing-applications/building-blocks/state-management/ | State Management - Concurrency}
    */
-  etag?: IEtag;
+  etag?: IEtag | string;
 
   /**
    * Request-level metadata passed to the state store component.
