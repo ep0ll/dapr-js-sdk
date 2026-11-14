@@ -243,6 +243,13 @@ export declare type GetActorStateResponse = Message<"dapr.proto.runtime.v1.GetAc
    * @generated from field: map<string, string> metadata = 2;
    */
   metadata: { [key: string]: string };
+
+  /**
+   * The ETag returned with the actor state.
+   *
+   * @generated from field: string etag = 3;
+   */
+  etag: string;
 };
 
 /**
@@ -309,6 +316,13 @@ export declare type TransactionalActorStateOperation = Message<"dapr.proto.runti
    * @generated from field: map<string, string> metadata = 4;
    */
   metadata: { [key: string]: string };
+
+  /**
+   * The ETag read with the current actor state value.
+   *
+   * @generated from field: string etag = 5;
+   */
+  etag: string;
 };
 
 /**
