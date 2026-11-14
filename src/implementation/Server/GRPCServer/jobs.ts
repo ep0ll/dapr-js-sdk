@@ -13,13 +13,11 @@ limitations under the License.
 
 import GRPCServer from "./GRPCServer";
 import IServerJobs from "../../../interfaces/Server/IServerJobs";
-import { validateJobRoutePath } from "../../../jobs/Jobs.util";
 
 export default class GRPCServerJobs implements IServerJobs {
   constructor(private readonly server: GRPCServer) {}
 
   async listen(name: string, callback: Parameters<IServerJobs["listen"]>[1]): Promise<void> {
-    validateJobRoutePath(name);
     this.server.getServerImpl().registerJobHandler(name, callback);
   }
 }
