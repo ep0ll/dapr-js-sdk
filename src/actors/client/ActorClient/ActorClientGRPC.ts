@@ -12,6 +12,7 @@ limitations under the License.
 */
 
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { AnySchema, anyUnpack, BytesValueSchema } from "@bufbuild/protobuf/wkt";
 import {
   ActorReminder,
@@ -37,6 +38,7 @@ import IClientActor, { ActorStateValue } from "../../../interfaces/Client/IClien
 import { KeyValueType } from "../../../types/KeyValue.type";
 import ActorId from "../../ActorId";
 import { parseActorReminder } from "../../../utils/Actors.util";
+import { ActorStateETagMismatchError } from "../../../errors/ActorStateETagMismatchError";
 
 // https://docs.dapr.io/reference/api/actors_api/
 export default class ActorClientGRPC implements IClientActor {
@@ -80,11 +82,18 @@ export default class ActorClientGRPC implements IClientActor {
       }),
     );
 
-    await client.executeActorStateTransaction(create(ExecuteActorStateTransactionRequestSchema, {
-      actorType,
-      actorId: actorId.getId(),
-      operations: transactionItems,
-    }));
+    try {
+      await client.executeActorStateTransaction(create(ExecuteActorStateTransactionRequestSchema, {
+        actorType,
+        actorId: actorId.getId(),
+        operations: transactionItems,
+      }));
+    } catch (error) {
+      if (error instanceof ConnectError && error.code === Code.Aborted) {
+        throw new ActorStateETagMismatchError(error.message);
+      }
+      throw error;
+    }
   }
 
   async stateGet(actorType: string, actorId: ActorId, key: string): Promise<ActorStateValue> {
