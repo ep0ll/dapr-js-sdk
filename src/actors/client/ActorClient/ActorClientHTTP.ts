@@ -15,7 +15,7 @@ import HTTPClient from "../../../implementation/Client/HTTPClient/HTTPClient";
 import { OperationType } from "../../../types/Operation.type";
 import { ActorReminderType, NamedActorReminderType } from "../../../types/ActorReminder.type";
 import { ActorTimerType } from "../../../types/ActorTimer.type";
-import IClientActor from "../../../interfaces/Client/IClientActor";
+import IClientActor, { ActorStateValue } from "../../../interfaces/Client/IClientActor";
 import { KeyValueType } from "../../../types/KeyValue.type";
 import ActorId from "../../ActorId";
 import { parseActorReminder } from "../../../utils/Actors.util";
@@ -48,9 +48,20 @@ export default class ActorClientHTTP implements IClientActor {
     });
   }
 
-  async stateGet(actorType: string, actorId: ActorId, key: string): Promise<KeyValueType | string> {
-    const result = await this.client.execute(`/actors/${actorType}/${actorId.getURLSafeId()}/state/${key}`);
-    return result as any;
+  async stateGet(actorType: string, actorId: ActorId, key: string): Promise<ActorStateValue> {
+    const response = await this.client.executeStreamWithApiVersion(
+      "v1.0",
+      `/actors/${actorType}/${actorId.getURLSafeId()}/state/${key}`,
+      { method: "GET" },
+    );
+    const body = await response.text();
+    let value: KeyValueType | string;
+    try {
+      value = JSON.parse(body);
+    } catch {
+      value = body;
+    }
+    return { value, etag: response.headers.get("etag") ?? undefined };
   }
 
   async registerActorReminder(
