@@ -15,7 +15,7 @@ import { create } from "@bufbuild/protobuf";
 import { AnySchema } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import IServerJobs from "../../../interfaces/Server/IServerJobs";
-import { decodeJobData, validateJobName } from "../../../jobs/Jobs.util";
+import { decodeJobData, validateJobRoutePath } from "../../../jobs/Jobs.util";
 
 import { InvokeRequest, InvokeResponse, InvokeResponseSchema } from "../../../proto/dapr/proto/common/v1/common_pb";
 import {
@@ -403,7 +403,7 @@ export default class GRPCServerImpl {
   }
 
   registerJobHandler(name: string, callback: Parameters<IServerJobs["listen"]>[1]): void {
-    validateJobName(name);
+    validateJobRoutePath(name);
     if (typeof callback !== "function") {
       throw new TypeError("A job callback is required");
     }
