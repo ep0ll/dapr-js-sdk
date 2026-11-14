@@ -122,6 +122,7 @@ export type {
   PubSubStreamingSubscription,
   PubSubStreamingSubscriptionOptions,
 } from "./types/pubsub/PubSubStreamingSubscription.type";
+export type { BulkSubscribeConfig } from "./types/pubsub/BulkSubscribeConfig.type";
 export type { NamedActorReminderType } from "./types/ActorReminder.type";
 export { JsonSerializer } from "./serialization/JsonSerializer";
 export type { default as IClientBinaryStore } from "./interfaces/Client/IClientBinaryStore";
