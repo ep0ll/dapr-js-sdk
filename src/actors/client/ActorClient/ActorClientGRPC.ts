@@ -33,7 +33,7 @@ import GRPCClient from "../../../implementation/Client/GRPCClient/GRPCClient";
 import { OperationType } from "../../../types/Operation.type";
 import { ActorReminderType, NamedActorReminderType } from "../../../types/ActorReminder.type";
 import { ActorTimerType } from "../../../types/ActorTimer.type";
-import IClientActor from "../../../interfaces/Client/IClientActor";
+import IClientActor, { ActorStateValue } from "../../../interfaces/Client/IClientActor";
 import { KeyValueType } from "../../../types/KeyValue.type";
 import ActorId from "../../ActorId";
 import { parseActorReminder } from "../../../utils/Actors.util";
@@ -76,6 +76,7 @@ export default class ActorClientGRPC implements IClientActor {
           value: Buffer.from(`${o.request.value}`, "utf-8"),
         }),
         metadata: o.request.metadata ?? {},
+        etag: o.request.etag,
       }),
     );
 
@@ -86,7 +87,7 @@ export default class ActorClientGRPC implements IClientActor {
     }));
   }
 
-  async stateGet(actorType: string, actorId: ActorId, key: string): Promise<KeyValueType | string> {
+  async stateGet(actorType: string, actorId: ActorId, key: string): Promise<ActorStateValue> {
     const client = await this.client.getClient();
 
     const res = await client.getActorState(create(GetActorStateRequestSchema, {
@@ -96,12 +97,14 @@ export default class ActorClientGRPC implements IClientActor {
     }));
 
     const resData = Buffer.from(res.data).toString();
-
+    let value: KeyValueType | string;
     try {
-      return JSON.parse(resData);
+      value = JSON.parse(resData);
     } catch {
-      return resData;
+      value = resData;
     }
+
+    return { value, etag: (res as any).etag || undefined };
   }
 
   async registerActorReminder(
