@@ -414,15 +414,18 @@ export default class GRPCServerImpl {
   }
 
   async onJobEventAlpha1(request: JobEventRequest, _context: HandlerContext): Promise<JobEventResponse> {
-    const callback = this.jobHandlers.get(request.name);
+    // New runtimes send the callback route in method while preserving name as the job identity.
+    // Fall back to name for compatibility with runtimes that do not populate method.
+    const routePath = request.method.startsWith("job/") ? request.method.slice("job/".length) : request.name;
+    const callback = this.jobHandlers.get(routePath);
     if (!callback) {
-      this.logger.warn(`Job '${request.name}' was not handled`);
+      this.logger.warn(`Job route '${routePath}' was not handled`);
       throw new ConnectError("Job handler not found", Code.NotFound);
     }
     try {
       await callback(decodeJobData(request.data));
     } catch (error) {
-      this.logger.error(`Job '${request.name}' callback failed: ${error}`);
+      this.logger.error(`Job route '${routePath}' callback failed: ${error}`);
       throw new ConnectError("Could not process job callback", Code.Internal);
     }
     return create(JobEventResponseSchema);
