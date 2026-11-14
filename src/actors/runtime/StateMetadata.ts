@@ -33,6 +33,7 @@ export default class StateMetadata<T> {
   private changeKind: StateChangeKind;
   private ttlExpireTime: Date | undefined;
   private ttlRemoved = false;
+  private etag: string | undefined;
 
   /**
    * Constructs a StateMetadata instance.
@@ -41,10 +42,11 @@ export default class StateMetadata<T> {
    * @param changeKind - The type of modification applied to this state ({@link StateChangeKind}).
    * @param ttlExpireTime - Optional absolute time at which this state expires.
    */
-  constructor(value: T, changeKind: StateChangeKind, ttlExpireTime?: Date) {
+  constructor(value: T, changeKind: StateChangeKind, ttlExpireTime?: Date, etag?: string) {
     this.value = value;
     this.changeKind = changeKind;
     this.ttlExpireTime = ttlExpireTime;
+    this.etag = etag;
   }
 
   /**
@@ -57,7 +59,7 @@ export default class StateMetadata<T> {
     changeKind: StateChangeKind,
     ttlExpireTime?: Date,
   ): StateMetadata<T> {
-    const metadata = new StateMetadata(value, changeKind, previous?.getTtlExpireTime());
+    const metadata = new StateMetadata(value, changeKind, previous?.getTtlExpireTime(), previous?.getETag());
     metadata.ttlRemoved = previous?.isTtlRemoved() ?? false;
     metadata.setTtlExpireTime(ttlExpireTime);
     return metadata;
@@ -70,6 +72,14 @@ export default class StateMetadata<T> {
    */
   getTtlExpireTime(): Date | undefined {
     return this.ttlExpireTime;
+  }
+
+  getETag(): string | undefined {
+    return this.etag;
+  }
+
+  setETag(etag?: string): void {
+    this.etag = etag;
   }
 
   /**
