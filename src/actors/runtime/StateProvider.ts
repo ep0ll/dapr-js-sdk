@@ -25,21 +25,31 @@ export default class StateProvider {
   }
 
   async containsState(actorType: string, actorId: ActorId, stateName: string): Promise<boolean> {
-    const rawStateValue = await this.actorClient.actor.stateGet(actorType, actorId, stateName);
-    return !!rawStateValue && rawStateValue.length > 0;
+    const [hasValue] = await this.tryLoadStateWithETag(actorType, actorId, stateName);
+    return hasValue;
   }
 
   // SEE https://github.com/dapr/python-sdk/blob/0f0b6f6a1cf45d2ac0c519b48fc868898d81124e/dapr/actor/runtime/_state_provider.py#L24
   async tryLoadState(actorType: string, actorId: ActorId, stateName: string): Promise<[boolean, any]> {
-    const rawStateValue = await this.actorClient.actor.stateGet(actorType, actorId, stateName);
+    const [hasValue, value] = await this.tryLoadStateWithETag(actorType, actorId, stateName);
+    return [hasValue, value];
+  }
+
+  async tryLoadStateWithETag(
+    actorType: string,
+    actorId: ActorId,
+    stateName: string,
+  ): Promise<[boolean, any, string | undefined]> {
+    const response = await this.actorClient.actor.stateGet(actorType, actorId, stateName);
+    const rawStateValue = response.value;
 
     if (!rawStateValue || rawStateValue.length === 0) {
-      return [false, undefined];
+      return [false, undefined, response.etag];
     }
 
     // const result = this.serializer.deserialize(rawStateValue);
 
-    return [true, rawStateValue];
+    return [true, rawStateValue, response.etag];
   }
 
   /**
@@ -102,6 +112,10 @@ export default class StateProvider {
       } else if (operation === "upsert" && state.isTtlRemoved()) {
         // Upserting without metadata keeps an existing TTL in some stores (e.g. Redis); -1 removes it.
         request.metadata = { ttlInSeconds: "-1" };
+      }
+
+      if (state.getETag()) {
+        request.etag = state.getETag();
       }
 
       jsonOutput.push({ operation, request });
